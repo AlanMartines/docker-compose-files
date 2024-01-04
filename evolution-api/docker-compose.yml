@@ -1,0 +1,91 @@
+# Criar um contêiner
+# docker compose -f docker-compose.yml up --build -d --no-recreate
+
+version: "3.8"
+
+services:
+
+  mongodb:
+    container_name: mongodb
+    hostname: mongodb
+    image: mongo:latest
+    restart: on-failure
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - evolution_mongodb_data:/data/db
+      - evolution_mongodb_configdb:/data/configdb
+
+  mongo-express:
+    container_name: mongodb-express
+    hostname: mongodb-express
+    image: mongo-express:latest
+    restart: on-failure
+    ports:
+      - 8085:8081
+    depends_on:
+      - mongodb
+    environment:
+      ME_CONFIG_BASICAUTH_USERNAME: root
+      ME_CONFIG_BASICAUTH_PASSWORD: root
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: root
+    links:
+      - mongodb
+
+  redis:
+    container_name: redis
+    hostname: redis
+    image: redis:latest
+    restart: on-failure
+    command: >
+      redis-server
+      --port 6379
+      --appendonly yes
+    volumes:
+      - evolution_redis:/data
+
+  rebrow:
+    container_name: rebrow
+    hostname: rebrow
+    image: marian/rebrow:latest
+    restart: on-failure
+    depends_on:
+      - redis
+    ports: 
+      - 5001:5001
+    links:
+      - redis
+
+  evolutionapi:
+    container_name: evolutionapi
+    hostname: evolutionapi
+    image: davidsongomes/evolution-api:latest
+    restart: always
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      - evolution_instances:/evolution/instances
+      - evolution_store:/evolution/store
+    env_file:
+      - .env
+    command: ['node', './dist/src/main.js']
+    ports:
+      - 8088:8080
+
+volumes:
+  evolution_mongodb_data:
+  evolution_mongodb_configdb:
+  evolution_redis:
+  evolution_instances:
+  evolution_store:
+
+networks:
+  evolution-net:
+    external: true
+  
